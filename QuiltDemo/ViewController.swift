@@ -12,8 +12,6 @@ class ViewController: UIViewController {
     var numberWidths = [Int]()
     var numberHeights = [Int]()
     
-    var num = 0
-    
     override func viewDidLoad() {
         super.viewDidLoad()
         // Do any additional setup after loading the view, typically from a nib.
@@ -21,8 +19,8 @@ class ViewController: UIViewController {
         
         let layout = self.collectionView.collectionViewLayout as! QuiltLayout
         layout.delegate = self
-        //layout.direction = .vertical
-        //layout.blockPixels = CGSize(width: 75, height: 75)
+        //layout.direction = .horizontal
+        //layout.blockPixels = CGSize(width: 50, height: 50)
         
         self.collectionView.reloadData()
     }
@@ -41,17 +39,23 @@ class ViewController: UIViewController {
         self.numbers.removeAll()
         self.numberWidths.removeAll()
         self.numberHeights.removeAll()
-        for num in 0...24 {
+        for num in 0...15 {
             self.numbers.append(num)
             self.numberWidths.append(ViewController.randomLength())
             self.numberHeights.append(ViewController.randomLength())
         }
-        //num = 15
     }
     
     @IBAction func add(_ sender: Any) {
+        let visibleIndexPaths = self.collectionView.indexPathsForVisibleItems
+        self.add(indexPath: visibleIndexPaths.first ?? IndexPath(row: 0, section: 0))
     }
     @IBAction func remove(_ sender: Any) {
+        if (self.numbers.count == 0) { return }
+        
+        let visibleIndexPaths = self.collectionView.indexPathsForVisibleItems
+        let toRemove = visibleIndexPaths[Int(arc4random()) % visibleIndexPaths.count]
+        self.remove(indexPath: toRemove)
     }
     @IBAction func reload(_ sender: Any) {
         self.dataInit()
@@ -61,11 +65,51 @@ class ViewController: UIViewController {
     func colorForNumber(num: Int) -> UIColor {
         return UIColor(hue: CGFloat((19 * num) % 255) / 255, saturation: 1, brightness: 1, alpha: 1)
     }
+    
+    private var isAnimating = false
+    
+    func add(indexPath: IndexPath) {
+        if (indexPath.row > self.numbers.count) {
+            return
+        }
+        
+        if (isAnimating) { return }
+        isAnimating = true
+        
+        self.collectionView.performBatchUpdates( {
+            let index = indexPath.row
+            self.numbers.insert(self.numbers.count, at: index)
+            self.numberWidths.insert(ViewController.randomLength(), at: index)
+            self.numberHeights.insert(ViewController.randomLength(), at: index)
+            self.collectionView.insertItems(at: [indexPath])
+        }) { _ in
+            self.isAnimating = false
+        }
+    }
+    
+    func remove(indexPath: IndexPath) {
+        if (self.numbers.count == 0 || indexPath.row > self.numbers.count) {
+            return
+        }
+        
+        if (isAnimating) { return }
+        isAnimating = true
+        
+        self.collectionView.performBatchUpdates({
+            let index = indexPath.row
+            self.numbers.remove(at: index)
+            self.numberWidths.remove(at: index)
+            self.numberHeights.remove(at: index)
+            self.collectionView.deleteItems(at: [indexPath])
+        }) { _ in
+            self.isAnimating = false
+        }
+    }
 }
 
 extension ViewController: UICollectionViewDelegate {
     func collectionView(_ collectionView: UICollectionView, didSelectItemAt indexPath: IndexPath) {
-        
+        self.remove(indexPath: indexPath)
     }
 }
 
