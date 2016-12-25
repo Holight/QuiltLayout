@@ -219,7 +219,7 @@ class QuiltLayout: UICollectionViewLayout {
                 let maximumRestrictedBoundSize = (vert ? blockOrigin.x : blockOrigin.y) == 0
                 
                 if (spaceAvailable && maximumRestrictedBoundSize && !inBounds) {
-//                    NSLog(@"%@: layout is not %@ enough for this piece size: %@! Adding anyway...", [self class], vert? @"wide" : @"tall", NSStringFromCGSize(blockSize));
+                    NSLog("\(type(of: self)): layout is not \(vert ? "wide" : "tall") enough for this piece size: \(blockSize)! Adding anyway...");
                     return true
                 }
             
@@ -389,6 +389,8 @@ class QuiltLayout: UICollectionViewLayout {
         return blockSize ?? CGSize(width: 1, height: 1)
     }
     
+    private var didShowMessage = false
+    
     // this will return the maximum width or height the quilt
     // layout can take, depending on we're growing horizontally
     // or vertically
@@ -396,17 +398,16 @@ class QuiltLayout: UICollectionViewLayout {
         let isVert = self.direction == .vertical
         
         let contentRect = UIEdgeInsetsInsetRect(self.collectionView!.frame, self.collectionView!.contentInset)
-        let size = isVert ? contentRect.width / self.blockPixels.width : contentRect.height / self.blockPixels.height
+        let size = Int(isVert ? contentRect.width / self.blockPixels.width : contentRect.height / self.blockPixels.height)
         
         if (size == 0) {
-//            static BOOL didShowMessage;
-//            if(!didShowMessage) {
-//                NSLog(@"%@: cannot fit block of size: %@ in content rect %@!  Defaulting to 1", [self class], NSStringFromCGSize(self.blockPixels), NSStringFromCGRect(contentRect));
-//                didShowMessage = YES;
-//            }
+            if(!didShowMessage) {
+                NSLog("\(type(of: self)): cannot fit block of size: \(self.blockPixels) in content rect \(contentRect)!  Defaulting to 1");
+                didShowMessage = true;
+            }
             return 1
         }
         
-        return Int(size)
+        return size
     }
 }
