@@ -7,19 +7,21 @@ import Foundation
 import UIKit
 
 @objc protocol QuiltLayoutDelegate: UICollectionViewDelegate {
-    func collectionView(_ collectionView: UICollectionView, layout collectionViewLayout: UICollectionViewLayout, sizeForItemAt indexPath: IndexPath) -> CGSize // defaults to 1x1
-    
-    func collectionView(_ collectionView: UICollectionView, layout collectionViewLayout: UICollectionViewLayout, insetForSectionAt section: Int) -> UIEdgeInsets // defaults to uiedgeinsetszero
+    func collectionView(_ collectionView: UICollectionView, layout collectionViewLayout: UICollectionViewLayout, sizeForItemAt indexPath: IndexPath) -> CGSize
+    func collectionView(_ collectionView: UICollectionView, layout collectionViewLayout: UICollectionViewLayout, insetForSectionAt section: Int) -> UIEdgeInsets
 }
 
 class QuiltLayout: UICollectionViewLayout {
+    
     var delegate: QuiltLayoutDelegate?
-    var blockPixels: CGSize = CGSize(width: 100, height: 100) { // defaults to 100x100
+    
+    var blockPixels: CGSize = CGSize(width: 100, height: 100) {
         didSet {
             invalidateLayout()
         }
     }
-    var direction: UICollectionViewScrollDirection = .vertical { // defaults to vertical
+    
+    var direction: UICollectionView.ScrollDirection = .vertical {
         didSet {
             invalidateLayout()
         }
@@ -33,7 +35,7 @@ class QuiltLayout: UICollectionViewLayout {
     private var firstOpenSpace = CGPoint()
     private var furthestBlockPoint = CGPoint()
     
-    func setFurthestBlockPoint(point: CGPoint) {
+    func setFurthestBlockPoint(_ point: CGPoint) {
         self.furthestBlockPoint = CGPoint(x: max(self.furthestBlockPoint.x, point.x), y: max(self.furthestBlockPoint.y, point.y))
     }
     
@@ -45,8 +47,6 @@ class QuiltLayout: UICollectionViewLayout {
     // lookup of block position by indexpath.
     var positionByIndexPath = [Int : [Int : CGPoint]]()
     
-    var hasPositionsCached: Bool?
-    
     // previous layout cache.  this is to prevent choppiness
     // when we scroll to the bottom of the screen - uicollectionview
     // will repeatedly call layoutattributesforelementinrect on
@@ -57,72 +57,70 @@ class QuiltLayout: UICollectionViewLayout {
     // remember the last indexpath placed, as to not
     // relayout the same indexpaths while scrolling
     var lastIndexPathPlaced: IndexPath?
-
-    override var collectionViewContentSize: CGSize {
-        let isVert = self.direction == .vertical;
     
-        let contentRect = UIEdgeInsetsInsetRect(self.collectionView!.frame, self.collectionView!.contentInset);
-        if (isVert) {
-            return CGSize(width: contentRect.width, height: (self.furthestBlockPoint.y+1) * self.blockPixels.height)
+    var isVertical: Bool {
+        return self.direction == .vertical
+    }
+    
+    override var collectionViewContentSize: CGSize {
+        let contentRect = collectionView!.frame.inset(by: collectionView!.contentInset);
+        if isVertical {
+            return CGSize(width: contentRect.width, height: (furthestBlockPoint.y+1) * blockPixels.height)
         }
         else {
-            return CGSize(width: (self.furthestBlockPoint.x+1) * self.blockPixels.width, height: contentRect.height)
+            return CGSize(width: (furthestBlockPoint.x+1) * blockPixels.width, height: contentRect.height)
         }
     }
     
     override func layoutAttributesForElements(in rect: CGRect) -> [UICollectionViewLayoutAttributes]? {
-        if (self.delegate == nil) {
+        guard delegate != nil else {
             return nil
         }
         
-        // see the comment on these properties
-        if(rect == self.previousLayoutRect) {
-            return self.previousLayoutAttributes
+        guard rect != previousLayoutRect else {
+            return previousLayoutAttributes
         }
-        self.previousLayoutRect = rect
         
-        let isVert = (self.direction == .vertical)
+        previousLayoutRect = rect
         
-        let unrestrictedDimensionStart = Int(isVert ? rect.origin.y / self.blockPixels.height : rect.origin.x / self.blockPixels.width)
-        let unrestrictedDimensionLength = Int((isVert ? rect.size.height / self.blockPixels.height : rect.size.width / self.blockPixels.width) + 1)
+        let unrestrictedDimensionStart = Int(isVertical ? rect.origin.y / blockPixels.height : rect.origin.x / blockPixels.width)
+        let unrestrictedDimensionLength = Int((isVertical ? rect.size.height / blockPixels.height : rect.size.width / blockPixels.width) + 1)
         let unrestrictedDimensionEnd = unrestrictedDimensionStart + unrestrictedDimensionLength
         
-        self.fillInBlocks(toUnrestricted: self.prelayoutEverything ? Int.max : unrestrictedDimensionEnd)
+        self.fillInBlocks(toUnrestricted: prelayoutEverything ? Int.max : unrestrictedDimensionEnd)
         
         // find the indexPaths between those rows
         var attributes = Set<UICollectionViewLayoutAttributes>()
-        _ = self.traverseTilesBetweenUnrestrictedDimension(begin: unrestrictedDimensionStart, and: unrestrictedDimensionEnd) { point in
-            if let indexPath = self.indexPath(for: point) {
-                if let attribute = self.layoutAttributesForItem(at: indexPath) {
-                    attributes.insert(attribute)
-                }
+        self.traverseTilesBetweenUnrestrictedDimension(begin: unrestrictedDimensionStart, and: unrestrictedDimensionEnd) { point in
+            if let indexPath = self.indexPath(for: point),
+                let attribute = self.layoutAttributesForItem(at: indexPath) {
+                attributes.insert(attribute)
             }
-            
             return true
         }
         
-        self.previousLayoutAttributes = Array(attributes)
-        return self.previousLayoutAttributes
+        previousLayoutAttributes = Array(attributes)
+        return previousLayoutAttributes
     }
     
     override func layoutAttributesForItem(at indexPath: IndexPath) -> UICollectionViewLayoutAttributes? {
-        let insets = self.delegate?.collectionView(self.collectionView!, layout: self, insetForSectionAt: indexPath.item)
-        let frame = self.frame(for: indexPath)
+        let insets = delegate?.collectionView(collectionView!, layout: self, insetForSectionAt: indexPath.item) ?? UIEdgeInsets()
+        let itemFrame = frame(for: indexPath)
         let attributes = UICollectionViewLayoutAttributes(forCellWith: indexPath)
-        attributes.frame = UIEdgeInsetsInsetRect(frame, insets ?? UIEdgeInsets())
+        attributes.frame = itemFrame.inset(by: insets)
         return attributes
     }
     
     func shouldInvalidateLayoutForBoundsChange(newBounds: CGRect) -> Bool {
-        return newBounds.size == self.collectionView!.frame.size
+        return newBounds.size == collectionView!.frame.size
     }
     
     override func prepare(forCollectionViewUpdates updateItems: [UICollectionViewUpdateItem]) {
         super.prepare(forCollectionViewUpdates: updateItems)
         
         for item in updateItems {
-            if (item.updateAction == .insert || item.updateAction == .move) {
-                self.fillInBlocks(to: item.indexPathAfterUpdate!)
+            if item.updateAction == .insert || item.updateAction == .move {
+                fillInBlocks(to: item.indexPathAfterUpdate!)
             }
         }
     }
@@ -130,52 +128,52 @@ class QuiltLayout: UICollectionViewLayout {
     override func invalidateLayout() {
         super.invalidateLayout()
         
-        self.furthestBlockPoint = CGPoint.zero
-        self.firstOpenSpace = CGPoint.zero
-        self.previousLayoutRect = CGRect.zero
-        self.previousLayoutAttributes = nil
-        self.lastIndexPathPlaced = nil
-        self.clearPositions()
+        furthestBlockPoint = CGPoint.zero
+        firstOpenSpace = CGPoint.zero
+        previousLayoutRect = CGRect.zero
+        previousLayoutAttributes = nil
+        lastIndexPathPlaced = nil
+        indexPathByPosition.removeAll()
+        positionByIndexPath.removeAll()
     }
     
     override func prepare() {
         super.prepare()
         
-        if (self.delegate == nil) { return }
+        guard delegate != nil else { return }
         
-        let isVert = self.direction == .vertical
+        let scrollOrigin = collectionView!.contentOffset
+        let scrollSize = collectionView!.frame.size
+        let scrollFrame = CGRect(origin: scrollOrigin, size: scrollSize)
         
-        let scrollFrame = CGRect(x: self.collectionView!.contentOffset.x, y: self.collectionView!.contentOffset.y, width: self.collectionView!.frame.size.width, height: self.collectionView!.frame.size.height)
-        
-        var unrestrictedRow = 0
-        if (isVert) {
-            unrestrictedRow = Int(scrollFrame.maxY / self.blockPixels.height) + 1
-        }
-        else {
-            unrestrictedRow = Int(scrollFrame.maxX / self.blockPixels.width) + 1
-        }
-        self.fillInBlocks(toUnrestricted: self.prelayoutEverything ? Int.max : unrestrictedRow)
+        let unrestrictedRow = isVertical ? Int(scrollFrame.maxY / blockPixels.height) + 1 : Int(scrollFrame.maxX / blockPixels.width) + 1
+        fillInBlocks(toUnrestricted: prelayoutEverything ? Int.max : unrestrictedRow)
     }
-
+    
     func fillInBlocks(toUnrestricted endRow: Int) {
-        let vert = (self.direction == .vertical)
+        
+        let startIndexPath: IndexPath
+        if let lastIndexPathPlaced = lastIndexPathPlaced {
+            startIndexPath = IndexPath(item: lastIndexPathPlaced.row + 1, section: lastIndexPathPlaced.section)
+        } else {
+            startIndexPath = IndexPath(row: 0, section: 0)
+        }
         
         // we'll have our data structure as if we're planning
         // a vertical layout, then when we assign positions to
         // the items we'll invert the axis
-        
-        let numSections = self.collectionView!.numberOfSections
-        for section in (self.lastIndexPathPlaced?.section ?? 0)..<numSections {
-            let numRows = self.collectionView!.numberOfItems(inSection: section)
-            for row in ((self.lastIndexPathPlaced?.row ?? -1) + 1)..<numRows {
+        let numSections = collectionView!.numberOfSections
+        for section in startIndexPath.section..<numSections {
+            let numRows = collectionView!.numberOfItems(inSection: section)
+            for row in startIndexPath.row..<numRows {
                 let indexPath = IndexPath(row: row, section: section)
                 
-                if (self.placeBlock(at: indexPath)) {
-                    self.lastIndexPathPlaced = indexPath
+                if placeBlock(at: indexPath) {
+                    lastIndexPathPlaced = indexPath
                 }
                 
                 // only jump out if we've already filled up every space up till the resticted row
-                if ((vert ? self.firstOpenSpace.y : self.firstOpenSpace.x) >= CGFloat(endRow)) {
+                if (isVertical ? firstOpenSpace.y : firstOpenSpace.x) >= CGFloat(endRow) {
                     return
                 }
             }
@@ -183,60 +181,64 @@ class QuiltLayout: UICollectionViewLayout {
     }
     
     func fillInBlocks(to path: IndexPath) {
+        let startIndexPath: IndexPath
+        if let lastIndexPathPlaced = lastIndexPathPlaced {
+            startIndexPath = IndexPath(item: lastIndexPathPlaced.row + 1, section: lastIndexPathPlaced.section)
+        } else {
+            startIndexPath = IndexPath(row: 0, section: 0)
+        }
+        
         // we'll have our data structure as if we're planning
         // a vertical layout, then when we assign positions to
         // the items we'll invert the axis
-        
-        let numSections = self.collectionView!.numberOfSections
-        for section in (self.lastIndexPathPlaced?.section ?? 0)..<numSections {
-            let numRows = self.collectionView!.numberOfItems(inSection: section)
-            for row in ((self.lastIndexPathPlaced?.row ?? -1) + 1)..<numRows {
+        let numSections = collectionView!.numberOfSections
+        for section in startIndexPath.section..<numSections {
+            let numRows = collectionView!.numberOfItems(inSection: section)
+            for row in startIndexPath.row..<numRows {
                 
                 // exit when we are past the desired row
-                if (section >= path.section && row > path.row) { return }
+                if section >= path.section && row > path.row {
+                    return
+                }
                 
                 let indexPath = IndexPath(row: row, section: section)
-                
-                if (self.placeBlock(at: indexPath)) {
-                    self.lastIndexPathPlaced = indexPath
+                if placeBlock(at: indexPath) {
+                    lastIndexPathPlaced = indexPath
                 }
             }
         }
     }
     
     func placeBlock(at indexPath: IndexPath) -> Bool {
-        let blockSize = self.getBlockSizeForItem(at: indexPath)
-        let vert = self.direction == .vertical
-        
-        return !self.traverseOpenTiles() { blockOrigin in
+        let blockSize = getBlockSizeForItem(at: indexPath)
+        return !traverseOpenTiles() { blockOrigin in
             
             // we need to make sure each square in the desired
             // area is available before we can place the square
-            
-            let didTraverseAllBlocks = self.traverseTilesForPoint(point: blockOrigin, with: blockSize) { point in
+            let didTraverseAllBlocks = self.traverseTiles(point: blockOrigin, with: blockSize) { point in
                 let spaceAvailable = self.indexPath(for: point) == nil
-                let inBounds = (vert ? point.x : point.y) < CGFloat(self.restrictedDimensionBlockSize)
-                let maximumRestrictedBoundSize = (vert ? blockOrigin.x : blockOrigin.y) == 0
+                let inBounds = (self.isVertical ? point.x : point.y) < CGFloat(self.restrictedDimensionBlockSize)
+                let maximumRestrictedBoundSize = (isVertical ? blockOrigin.x : blockOrigin.y) == 0
                 
-                if (spaceAvailable && maximumRestrictedBoundSize && !inBounds) {
-                    NSLog("\(type(of: self)): layout is not \(vert ? "wide" : "tall") enough for this piece size: \(blockSize)! Adding anyway...");
+                if spaceAvailable && maximumRestrictedBoundSize && !inBounds {
+                    print("\(type(of: self)): layout is not \(self.isVertical ? "wide" : "tall") enough for this piece size: \(blockSize)! Adding anyway...")
                     return true
                 }
-            
+                
                 return spaceAvailable && inBounds
             }
             
-            if (!didTraverseAllBlocks) { return true }
+            if !didTraverseAllBlocks {
+                return true
+            }
             
             // because we have determined that the space is all
             // available, lets fill it in as taken.
-        
-            self.setIndexPath(path: indexPath, for: blockOrigin)
+            self.setIndexPath(indexPath, for: blockOrigin)
             
-            _ = self.traverseTilesForPoint(point: blockOrigin, with: blockSize) { point in
-                self.setPosition(point: point, for: indexPath)
-                
-                self.setFurthestBlockPoint(point: point)
+            self.traverseTiles(point: blockOrigin, with: blockSize) { point in
+                self.setPosition(point, for: indexPath)
+                self.setFurthestBlockPoint(point)
                 
                 return true
             }
@@ -245,15 +247,13 @@ class QuiltLayout: UICollectionViewLayout {
         }
     }
     
-    func traverseTilesBetweenUnrestrictedDimension(begin: Int, and end: Int, iterator block: (CGPoint) -> Bool) ->Bool {
-        let isVert = self.direction == .vertical
-        
+    @discardableResult
+    func traverseTilesBetweenUnrestrictedDimension(begin: Int, and end: Int, iterator block: (CGPoint) -> Bool) -> Bool {
         // the double ;; is deliberate, the unrestricted dimension should iterate indefinitely
         for unrestrictedDimension in begin..<end {
-            for restrictedDimension in 0..<self.restrictedDimensionBlockSize {
-                let point = CGPoint(x: isVert ? restrictedDimension : unrestrictedDimension, y: isVert ? unrestrictedDimension : restrictedDimension)
-                
-                if (!block(point)) {
+            for restrictedDimension in 0..<restrictedDimensionBlockSize {
+                let point = isVertical ? CGPoint(x: restrictedDimension, y: unrestrictedDimension) : CGPoint(x: unrestrictedDimension, y: restrictedDimension)
+                if !block(point) {
                     return false
                 }
             }
@@ -262,43 +262,39 @@ class QuiltLayout: UICollectionViewLayout {
         return true
     }
     
-    func traverseTilesForPoint(point: CGPoint, with size: CGSize, iterator block: (CGPoint) -> Bool) ->Bool {
-        var col = point.x
-        while col < point.x + size.width {
-            var row = point.y
-            while row < point.y + size.height {
-                if (!block(CGPoint(x: col, y: row))) {
+    @discardableResult
+    func traverseTiles(point: CGPoint, with size: CGSize, iterator block: (CGPoint) -> Bool) -> Bool {
+        for col in Int(point.x)..<Int(point.x + size.width) {
+            for row in Int(point.y)..<Int(point.y + size.height) {
+                if !block(CGPoint(x: col, y: row)) {
                     return false
                 }
-                row += 1
             }
-            col += 1
         }
         
         return true;
     }
     
-    func traverseOpenTiles(block: (CGPoint) -> Bool) ->Bool {
+    func traverseOpenTiles(block: (CGPoint) -> Bool) -> Bool {
         var allTakenBefore = true
-        let isVert = self.direction == .vertical
         
         // the while true is deliberate, the unrestricted dimension should iterate indefinitely
-        var unrestrictedDimension = isVert ? self.firstOpenSpace.y : self.firstOpenSpace.x
+        var unrestrictedDimension = isVertical ? firstOpenSpace.y : firstOpenSpace.x
         while true {
-            for restrictedDimension in 0..<self.restrictedDimensionBlockSize {
-                let point = CGPoint(x: isVert ? CGFloat(restrictedDimension) : unrestrictedDimension,
-                                    y: isVert ? unrestrictedDimension : CGFloat(restrictedDimension))
+            for restrictedDimension in 0..<restrictedDimensionBlockSize {
+                let point = CGPoint(x: isVertical ? CGFloat(restrictedDimension) : unrestrictedDimension,
+                                    y: isVertical ? unrestrictedDimension : CGFloat(restrictedDimension))
                 
-                if (self.indexPath(for: point) != nil) {
+                if indexPath(for: point) != nil {
                     continue
                 }
                 
-                if (allTakenBefore) {
-                    self.firstOpenSpace = point
+                if allTakenBefore {
+                    firstOpenSpace = point
                     allTakenBefore = false
                 }
                 
-                if (!block(point)) {
+                if !block(point) {
                     return false
                 }
             }
@@ -310,101 +306,83 @@ class QuiltLayout: UICollectionViewLayout {
         return true
     }
     
-    func clearPositions() {
-        self.indexPathByPosition.removeAll()
-        self.positionByIndexPath.removeAll()
-    }
-    
     func indexPath(for point: CGPoint) -> IndexPath? {
-        let isVert = self.direction == .vertical
-        
         // to avoid creating unbounded nsmutabledictionaries we should
         // have the innerdict be the unrestricted dimension
-    
-        let unrestrictedPoint = (isVert ? point.y : point.x)
-        let restrictedPoint = (isVert ? point.x : point.y)
+        let unrestrictedPoint = (isVertical ? point.y : point.x)
+        let restrictedPoint = (isVertical ? point.x : point.y)
         
-        return self.indexPathByPosition[restrictedPoint]?[unrestrictedPoint]
+        return indexPathByPosition[restrictedPoint]?[unrestrictedPoint]
     }
     
-    func setPosition(point: CGPoint, for indexPath: IndexPath) {
-        let isVert = self.direction == .vertical
-        
+    func setPosition(_ point: CGPoint, for indexPath: IndexPath) {
         // to avoid creating unbounded nsmutabledictionaries we should
         // have the innerdict be the unrestricted dimension
         
-        let unrestrictedPoint = (isVert ? point.y : point.x)
-        let restrictedPoint = (isVert ? point.x : point.y)
+        let unrestrictedPoint = isVertical ? point.y : point.x
+        let restrictedPoint = isVertical ? point.x : point.y
         
-        if self.indexPathByPosition[restrictedPoint] == nil {
-            self.indexPathByPosition[restrictedPoint] = [CGFloat : IndexPath]()
+        if indexPathByPosition[restrictedPoint] == nil {
+            indexPathByPosition[restrictedPoint] = [CGFloat : IndexPath]()
         }
         
-        self.indexPathByPosition[restrictedPoint]![unrestrictedPoint] = indexPath
+        indexPathByPosition[restrictedPoint]![unrestrictedPoint] = indexPath
     }
     
     func position(for path: IndexPath) -> CGPoint {
         
         // if item does not have a position, we will make one!
-        if self.positionByIndexPath[path.section]![path.row] == nil {
-            self.fillInBlocks(to: path)
+        if positionByIndexPath[path.section]![path.row] == nil {
+            fillInBlocks(to: path)
         }
         
-        return self.positionByIndexPath[path.section]![path.row]!
+        return positionByIndexPath[path.section]![path.row]!
     }
     
-    func setIndexPath(path: IndexPath, for point: CGPoint) {
-        if self.positionByIndexPath[path.section] == nil {
-            self.positionByIndexPath[path.section] = [Int : CGPoint]()
+    func setIndexPath(_ path: IndexPath, for point: CGPoint) {
+        if positionByIndexPath[path.section] == nil {
+            positionByIndexPath[path.section] = [Int : CGPoint]()
         }
         
-        self.positionByIndexPath[path.section]![path.row] = point
+        positionByIndexPath[path.section]![path.row] = point
     }
     
     func frame(for path: IndexPath) -> CGRect {
-        let isVert = self.direction == .vertical
-        let position = self.position(for: path)
-        let elementSize = self.getBlockSizeForItem(at: path)
+        let itemPosition = position(for: path)
+        let itemSize = getBlockSizeForItem(at: path)
         
-        let contentRect = UIEdgeInsetsInsetRect(self.collectionView!.frame, self.collectionView!.contentInset)
-        if (isVert) {
-            let initialPaddingForContraintedDimension = (contentRect.width - CGFloat(self.restrictedDimensionBlockSize) * self.blockPixels.width) / 2
-            return CGRect(x: position.x*self.blockPixels.width + initialPaddingForContraintedDimension,
-                          y: position.y*self.blockPixels.height,
-                          width: elementSize.width*self.blockPixels.width,
-                          height: elementSize.height*self.blockPixels.height)
+        let contentRect = collectionView!.frame.inset(by: collectionView!.contentInset)
+        if isVertical {
+            let initialPaddingForContraintedDimension = (contentRect.width - CGFloat(restrictedDimensionBlockSize) * blockPixels.width) / 2
+            return CGRect(x: itemPosition.x * blockPixels.width + initialPaddingForContraintedDimension,
+                          y: itemPosition.y * blockPixels.height,
+                          width: itemSize.width * blockPixels.width,
+                          height: itemSize.height * blockPixels.height)
         }
         else {
-            let initialPaddingForContraintedDimension = (contentRect.height - CGFloat(self.restrictedDimensionBlockSize) * self.blockPixels.height) / 2
-            return CGRect(x: position.x*self.blockPixels.width,
-                          y: position.y*self.blockPixels.height + initialPaddingForContraintedDimension,
-                          width: elementSize.width*self.blockPixels.width,
-                          height: elementSize.height*self.blockPixels.height)
+            let initialPaddingForContraintedDimension = (contentRect.height - CGFloat(restrictedDimensionBlockSize) * blockPixels.height) / 2
+            return CGRect(x: itemPosition.x * blockPixels.width,
+                          y: itemPosition.y * blockPixels.height + initialPaddingForContraintedDimension,
+                          width: itemSize.width * blockPixels.width,
+                          height: itemSize.height * blockPixels.height)
         }
     }
     
     //This method is prefixed with get because it may return its value indirectly
     func getBlockSizeForItem(at indexPath: IndexPath) -> CGSize {
-        let blockSize = self.delegate?.collectionView(self.collectionView!, layout: self, sizeForItemAt: indexPath)
+        let blockSize = delegate?.collectionView(collectionView!, layout: self, sizeForItemAt: indexPath)
         return blockSize ?? CGSize(width: 1, height: 1)
     }
-    
-    private var didShowMessage = false
     
     // this will return the maximum width or height the quilt
     // layout can take, depending on we're growing horizontally
     // or vertically
     var restrictedDimensionBlockSize: Int {
-        let isVert = self.direction == .vertical
-        
-        let contentRect = UIEdgeInsetsInsetRect(self.collectionView!.frame, self.collectionView!.contentInset)
-        let size = Int(isVert ? contentRect.width / self.blockPixels.width : contentRect.height / self.blockPixels.height)
+        let contentRect = collectionView!.frame.inset(by: collectionView!.contentInset)
+        let size = Int(isVertical ? contentRect.width / blockPixels.width : contentRect.height / blockPixels.height)
         
         if (size == 0) {
-            if(!didShowMessage) {
-                NSLog("\(type(of: self)): cannot fit block of size: \(self.blockPixels) in content rect \(contentRect)!  Defaulting to 1");
-                didShowMessage = true;
-            }
+            print("\(type(of: self)): cannot fit block of size: \(blockPixels) in content rect \(contentRect)!  Defaulting to 1")
             return 1
         }
         
