@@ -374,6 +374,13 @@ class QuiltLayout: UICollectionViewLayout {
         return blockSize ?? CGSize(width: 1, height: 1)
     }
     
+    override func targetIndexPath(forInteractivelyMovingItem previousIndexPath: IndexPath, withPosition position: CGPoint) -> IndexPath {
+        let point = CGPoint(x: Int(position.x / blockPixels.width), y: Int(position.y / blockPixels.height))
+        return indexPath(for: point) ?? super.targetIndexPath(forInteractivelyMovingItem: previousIndexPath, withPosition: position)
+    }
+    
+    private var didShowMessage = false
+    
     // this will return the maximum width or height the quilt
     // layout can take, depending on we're growing horizontally
     // or vertically
