@@ -15,19 +15,19 @@ class ViewController: UIViewController {
     override func viewDidLoad() {
         super.viewDidLoad()
         // Do any additional setup after loading the view, typically from a nib.
-        self.dataInit()
+        dataInit()
         
-        let layout = self.collectionView.collectionViewLayout as! QuiltLayout
+        let layout = collectionView.collectionViewLayout as! QuiltLayout
         layout.delegate = self
         //layout.direction = .horizontal
         //layout.blockPixels = CGSize(width: 50, height: 50)
         
-        self.collectionView.reloadData()
+        collectionView.reloadData()
     }
     
     override func viewDidAppear(_ animated: Bool) {
         super.viewDidAppear(animated)
-        self.collectionView.reloadData()
+        collectionView.reloadData()
     }
 
     override func didReceiveMemoryWarning() {
@@ -36,30 +36,30 @@ class ViewController: UIViewController {
     }
     
     func dataInit() {
-        self.numbers.removeAll()
-        self.numberWidths.removeAll()
-        self.numberHeights.removeAll()
+        numbers.removeAll()
+        numberWidths.removeAll()
+        numberHeights.removeAll()
         for num in 0...15 {
-            self.numbers.append(num)
-            self.numberWidths.append(ViewController.randomLength())
-            self.numberHeights.append(ViewController.randomLength())
+            numbers.append(num)
+            numberWidths.append(ViewController.randomLength())
+            numberHeights.append(ViewController.randomLength())
         }
     }
     
     @IBAction func add(_ sender: Any) {
-        let visibleIndexPaths = self.collectionView.indexPathsForVisibleItems
-        self.add(indexPath: visibleIndexPaths.first ?? IndexPath(row: 0, section: 0))
+        let visibleIndexPaths = collectionView.indexPathsForVisibleItems
+        add(indexPath: visibleIndexPaths.first ?? IndexPath(row: 0, section: 0))
     }
     @IBAction func remove(_ sender: Any) {
-        if (self.numbers.count == 0) { return }
+        if (numbers.count == 0) { return }
         
-        let visibleIndexPaths = self.collectionView.indexPathsForVisibleItems
+        let visibleIndexPaths = collectionView.indexPathsForVisibleItems
         let toRemove = visibleIndexPaths[Int(arc4random()) % visibleIndexPaths.count]
-        self.remove(indexPath: toRemove)
+        remove(indexPath: toRemove)
     }
     @IBAction func reload(_ sender: Any) {
-        self.dataInit()
-        self.collectionView.reloadData()
+        dataInit()
+        collectionView.reloadData()
     }
     
     func colorForNumber(num: Int) -> UIColor {
@@ -69,14 +69,16 @@ class ViewController: UIViewController {
     private var isAnimating = false
     
     func add(indexPath: IndexPath) {
-        if (indexPath.row > self.numbers.count) {
+        if (indexPath.row > numbers.count) {
             return
         }
         
-        if (isAnimating) { return }
+        if (isAnimating) {
+            return
+        }
         isAnimating = true
         
-        self.collectionView.performBatchUpdates( {
+        collectionView.performBatchUpdates( {
             let index = indexPath.row
             self.numbers.insert(self.numbers.count, at: index)
             self.numberWidths.insert(ViewController.randomLength(), at: index)
@@ -88,14 +90,14 @@ class ViewController: UIViewController {
     }
     
     func remove(indexPath: IndexPath) {
-        if (self.numbers.count == 0 || indexPath.row > self.numbers.count) {
+        if (numbers.count == 0 || indexPath.row > numbers.count) {
             return
         }
         
         if (isAnimating) { return }
         isAnimating = true
         
-        self.collectionView.performBatchUpdates({
+        collectionView.performBatchUpdates({
             let index = indexPath.row
             self.numbers.remove(at: index)
             self.numberWidths.remove(at: index)
@@ -109,18 +111,18 @@ class ViewController: UIViewController {
 
 extension ViewController: UICollectionViewDelegate {
     func collectionView(_ collectionView: UICollectionView, didSelectItemAt indexPath: IndexPath) {
-        self.remove(indexPath: indexPath)
+        remove(indexPath: indexPath)
     }
 }
 
 extension ViewController: UICollectionViewDataSource {
     func collectionView(_ collectionView: UICollectionView, numberOfItemsInSection section: Int) -> Int {
-        return self.numbers.count
+        return numbers.count
     }
     
     func collectionView(_ collectionView: UICollectionView, cellForItemAt indexPath: IndexPath) -> UICollectionViewCell {
         let cell = collectionView.dequeueReusableCell(withReuseIdentifier: "cell", for: indexPath)
-        cell.backgroundColor = self.colorForNumber(num: self.numbers[indexPath.row])
+        cell.backgroundColor = colorForNumber(num: numbers[indexPath.row])
         
         var label = cell.viewWithTag(5) as? UILabel
         if (label == nil) {
@@ -128,7 +130,7 @@ extension ViewController: UICollectionViewDataSource {
         }
         label?.tag = 5
         label?.textColor = UIColor.black
-        let number = self.numbers[indexPath.row]
+        let number = numbers[indexPath.row]
         label?.text = "\(number)"
         label?.backgroundColor = UIColor.clear
         cell.addSubview(label!)
@@ -139,12 +141,12 @@ extension ViewController: UICollectionViewDataSource {
 
 extension ViewController: QuiltLayoutDelegate {
     func collectionView(_ collectionView: UICollectionView, layout collectionViewLayout: UICollectionViewLayout, sizeForItemAt indexPath: IndexPath) -> CGSize {
-        if (indexPath.row >= self.numbers.count) {
-            //NSLog(@"Asking for index paths of non-existant cells!! %ld from %lu cells", (long)indexPath.row, (unsigned long)self.numbers.count);
+        if (indexPath.row >= numbers.count) {
+            //NSLog(@"Asking for index paths of non-existant cells!! %ld from %lu cells", (long)indexPath.row, (unsigned long)numbers.count);
         }
         
-        let width = self.numberWidths[indexPath.row]
-        let height = self.numberHeights[indexPath.row]
+        let width = numberWidths[indexPath.row]
+        let height = numberHeights[indexPath.row]
         return CGSize(width: width, height: height)
     }
 
@@ -157,23 +159,21 @@ extension ViewController {
     static func randomLength() -> Int {
         
         // always returns a random length between 1 and 3, weighted towards lower numbers.
-        var result = Int(arc4random() % 6);
+        var result = Int(arc4random() % 6)
         
         // 3/6 chance of it being 1.
-        if (result <= 2)
-        {
-            result = 1;
+        if (result <= 2) {
+            result = 1
         }
-            // 1/6 chance of it being 3.
-        else if (result == 5)
-        {
-            result = 3;
+        // 1/6 chance of it being 3.
+        else if (result == 5) {
+            result = 3
         }
-            // 2/6 chance of it being 2.
+        // 2/6 chance of it being 2.
         else {
-            result = 2;
+            result = 2
         }
         
-        return result;
+        return result
     }
 }
